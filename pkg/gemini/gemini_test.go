@@ -48,6 +48,20 @@ func TestNewGeminus(t *testing.T) {
 }
 
 func TestSetState(t *testing.T) {
+	addr := "10.10.210.21"
+	g := NewGeminus(addr)
+
+	g.Init()
+
+	g.SetState("10.10.210.21")
+	g.SetState("109.20.212.121")
+	g.SetState("100.130.322.222")
+	g.SetState("100.130.322.222")
+	g.SetState("41.210.412.312")
+
+	for _, v := range g.GetState() {
+		t.Logf("State %s", v)
+	}
 	t.Log("No test case for Gemini.SetState")
 	t.Fail()
 }

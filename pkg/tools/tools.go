@@ -1,9 +1,7 @@
 package tools
 
 import (
-	bytes "bytes"
 	rand "math/rand"
-	sort "sort"
 	"time"
 
 	edlib "github.com/hbollon/go-edlib"
@@ -18,16 +16,8 @@ func GetLSDistance(s, t []byte) (int, error) {
 	return int(res), err
 }
 
-func BinarySearch(s [][]byte, t []byte) []byte {
-	el := sort.Search(len(s), func(i int) bool {
-		return bytes.Compare(s[i], t) == 0
-	})
-
-	return s[el]
-}
-
-func PickRandom(sob [][]byte) []byte {
+func PickRandom(min, max int) int {
 	rand.Seed(time.Now().UnixNano())
-	randomInt := rand.Intn(len(sob) - 1)
-	return sob[randomInt]
+	randomInt := rand.Intn(max - min)
+	return randomInt
 }

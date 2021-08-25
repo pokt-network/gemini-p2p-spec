@@ -29,8 +29,10 @@ type (
 		Init() error
 		GetState() []Addressing.Addr
 		SetState(addr string) int
-		GetHatClub() []Addressing.Addr
-		GetBootClub() []Addressing.Addr
+		SetInHatClub(int, Addressing.Addr)
+		SetInBootClub(int, Addressing.Addr)
+		GetHatClub() *[]Addressing.Addr
+		GetBootClub() *[]Addressing.Addr
 		IsInHatClub(string) bool
 		IsInBootClub(string) bool
 		GetAddrDistance(string) int
@@ -80,7 +82,8 @@ func NewGeminus(addr string) *Geminus {
 	return &Geminus{
 		Params: geminiParams,
 		Addr:   gAddr,
-		State:  make([]Addressing.Addr, geminiParams.ClubSize.Hat+geminiParams.ClubSize.Boot),
+		// this allocation should be dynamic per need
+		State: make([]Addressing.Addr, geminiParams.ClubSize.Hat+geminiParams.ClubSize.Boot, geminiParams.ClubSize.Hat+geminiParams.ClubSize.Boot),
 		HatClub: Range{
 			Start: 0,
 			End:   geminiParams.ClubSize.Hat - 1,
@@ -113,14 +116,14 @@ func (g *Geminus) SetState(addr string) int {
 		// add to proper position (according to numerical distance)
 		haddr := Addressing.NewAddress(addr, true)
 		d, _ := Tools.GetLSDistance(g.Addr.GetHash(), haddr.GetHash()) // not sure if this is the right "numerical distance" fn
-		g.GetHatClub()[d] = haddr
+		g.SetInHatClub(d, haddr)
 		return 0
 	} else if isInBootClub {
 		// sort
 		// add to proper position (according to numerical distance)
 		haddr := Addressing.NewAddress(addr, true)
 		d, _ := Tools.GetLSDistance(g.Addr.GetHash(), haddr.GetHash()) // not sure if this is the right "numerical distance" fn
-		g.GetBootClub()[d] = haddr
+		g.SetInBootClub(d, haddr)
 		return 0
 	}
 	return 1
@@ -132,6 +135,14 @@ func (g *Geminus) GetHatClub() []Addressing.Addr {
 
 func (g *Geminus) GetBootClub() []Addressing.Addr {
 	return g.State[g.BootClub.Start:g.BootClub.End]
+}
+
+func (g *Geminus) SetInHatClub(d int, v Addressing.Addr) {
+	g.State[g.HatClub.Start+d] = v
+}
+
+func (g *Geminus) SetInBootClub(d int, v Addressing.Addr) {
+	g.State[g.BootClub.Start+d] = v
 }
 
 func (g *Geminus) IsInHatClub(addr string) bool {
