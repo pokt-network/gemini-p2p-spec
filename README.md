@@ -9,9 +9,9 @@ Peer logic
 $ cd pkg/peer && go test
 ```
 
-Addr logic
+Addressing logic
 ```
-$ cd pkg/addr && go test
+$ cd pkg/addressing && go test
 ```
 
 Seed logic
