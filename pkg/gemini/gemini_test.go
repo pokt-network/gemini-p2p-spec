@@ -6,15 +6,22 @@ import (
 )
 
 func TestNewGeminus(t *testing.T) {
-	addr := make([]byte, 64)
+	addr := "10.10.210.21"
 	g := NewGeminus(addr)
+
+	err := g.Init()
+
+	if err != nil {
+		t.Log("Faulty Gemini Address Length Param or Hash Function")
+		t.Fail()
+	}
 
 	if g.Params.AddrLength != 64 {
 		t.Log("Faulty Geminus Address")
 		t.Fail()
 	}
 
-	if bytes.Compare(g.Addr, addr) != 0 {
+	if bytes.Compare([]byte(g.Addr.GetRaw()), []byte(addr)) != 0 {
 		t.Log("Faulty Geminus Address")
 		t.Fail()
 	}
@@ -40,13 +47,13 @@ func TestNewGeminus(t *testing.T) {
 	}
 }
 
-func TestGetState(t *testing.T) {
-	t.Log("No test case for Gemini.GetState")
+func TestSetState(t *testing.T) {
+	t.Log("No test case for Gemini.SetState")
 	t.Fail()
 }
 
-func TestSetState(t *testing.T) {
-	t.Log("No test case for Gemini.SetState")
+func TestGetState(t *testing.T) {
+	t.Log("No test case for Gemini.GetState")
 	t.Fail()
 }
 
