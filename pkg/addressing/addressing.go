@@ -16,6 +16,7 @@ type (
 	Addr interface {
 		Hash()
 		GetHash() []byte
+		GetBinaryHash() []byte
 		GetRaw() string
 		GetStatus() Status
 		String() string
