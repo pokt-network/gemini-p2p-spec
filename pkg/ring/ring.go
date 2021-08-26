@@ -1,6 +1,7 @@
 package ring
 
 import (
+	"bytes"
 	"encoding/binary"
 	"math/big"
 )
@@ -27,6 +28,7 @@ func NewGeminiRing(order int) *GeminiRing {
 }
 
 func (gr *GeminiRing) GetDistance(a, b []byte) uint64 {
+	var distance uint64
 	var distBA, rA, rB big.Int
 
 	(&rA).SetBytes(a)
@@ -35,5 +37,8 @@ func (gr *GeminiRing) GetDistance(a, b []byte) uint64 {
 	(&distBA).Sub(&rB, &rA)
 	(&distBA).Mod(&distBA, &gr.Ring)
 
-	return binary.BigEndian.Uint64(distBA.Bytes())
+	buf := bytes.NewReader(distBA.Bytes())
+	binary.Read(buf, binary.BigEndian, &distance)
+
+	return distance
 }

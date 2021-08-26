@@ -1,8 +1,9 @@
 package addressing
 
 import (
-	"crypto/sha512"
+	"crypto/sha1"
 	"fmt"
+	"math/big"
 )
 
 type Status string
@@ -48,7 +49,8 @@ func (a *Address) Hash() {
 		return
 	}
 
-	h := sha512.New()
+	// TODO: decouple this using an interface
+	h := sha1.New()
 	h.Write([]byte(a.Raw))
 	a.Hashed = h.Sum(nil)
 	a.Status = Hashed
@@ -72,4 +74,10 @@ func (a *Address) GetRaw() string {
 
 func (a *Address) String() string {
 	return fmt.Sprintf("Raw: %s, Hash: %b", a.Raw, a.Hashed)
+}
+
+func (a *Address) GetBinaryHash() []byte {
+	var binRep big.Int
+	(&binRep).SetBytes(a.Hashed)
+	return []byte(fmt.Sprintf("%b", &binRep))
 }

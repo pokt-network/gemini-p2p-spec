@@ -12,11 +12,11 @@ func TestNewGeminus(t *testing.T) {
 	err := g.Init()
 
 	if err != nil {
-		t.Log("Faulty Gemini Address Length Param or Hash Function")
+		t.Log("Faulty Gemini Address Length Param or Hash Function", err)
 		t.Fail()
 	}
 
-	if g.Params.AddrLength != 64 {
+	if g.Params.AddrLength != 160 {
 		t.Log("Faulty Geminus Address")
 		t.Fail()
 	}
@@ -26,23 +26,13 @@ func TestNewGeminus(t *testing.T) {
 		t.Fail()
 	}
 
-	if g.HatClub.Start != 0 {
-		t.Log("Faulty Geminus HatClub Start Value")
+	if len(g.HatClub) != g.Params.ClubSize.Boot {
+		t.Log("Faulty Geminus HatClub Instantiation")
 		t.Fail()
 	}
 
-	if g.HatClub.End != g.Params.ClubSize.Hat-1 {
-		t.Log("Faulty Geminus HatClub End Value")
-		t.Fail()
-	}
-
-	if g.BootClub.Start != g.Params.ClubSize.Hat {
-		t.Log("Faulty Geminus BootClub Start Value")
-		t.Fail()
-	}
-
-	if g.BootClub.End != g.Params.ClubSize.Hat+g.Params.ClubSize.Boot-1 {
-		t.Log("Faulty Geminus BootClub End Value")
+	if len(g.BootClub) != g.Params.ClubSize.Boot {
+		t.Log("Faulty Geminus BootClub Instantiation")
 		t.Fail()
 	}
 }
@@ -54,14 +44,16 @@ func TestSetState(t *testing.T) {
 	g.Init()
 
 	g.SetState("10.10.210.21")
+	g.SetState("10.10.230.331")
 	g.SetState("109.20.212.121")
 	g.SetState("100.130.322.222")
 	g.SetState("100.130.322.222")
 	g.SetState("41.210.412.312")
 
-	for _, v := range g.GetState() {
-		t.Logf("State %s", v)
-	}
+	//for _, v := range g.GetState() {
+	//	t.Logf("State %s", v)
+	//}
+
 	t.Log("No test case for Gemini.SetState")
 	t.Fail()
 }

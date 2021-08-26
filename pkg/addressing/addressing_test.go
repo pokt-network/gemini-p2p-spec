@@ -1,8 +1,6 @@
 package addressing
 
-import (
-	"testing"
-)
+import "testing"
 
 func TestNewAddress(t *testing.T) {
 	addr := NewAddress("10.10.123.123")
@@ -24,7 +22,7 @@ func TestNewAddress(t *testing.T) {
 		t.Fail()
 	}
 
-	if len(addr.GetHash()) != 64 {
+	if len(addr.GetHash()) != 20 {
 		t.Log("Faulty Address Hash Length")
 		t.Fail()
 	}
@@ -43,7 +41,7 @@ func TestNewAddressWithImmediateHashing(t *testing.T) {
 		t.Fail()
 	}
 
-	if len(addr.GetHash()) != 64 {
+	if len(addr.GetHash()) != 20 {
 		t.Log("Faulty Address Hash Length")
 		t.Fail()
 	}

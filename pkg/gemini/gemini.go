@@ -3,7 +3,9 @@ package gemini
 import (
 	bytes "bytes"
 	"errors"
+	"fmt"
 	Addressing "gemelos/pkg/addressing"
+	Ring "gemelos/pkg/ring"
 	Tools "gemelos/pkg/tools"
 	"sort"
 )
@@ -29,10 +31,10 @@ type (
 		Init() error
 		GetState() []Addressing.Addr
 		SetState(addr string) int
-		SetInHatClub(int, Addressing.Addr)
-		SetInBootClub(int, Addressing.Addr)
-		GetHatClub() *[]Addressing.Addr
-		GetBootClub() *[]Addressing.Addr
+		SetInHatClub(Addressing.Addr)
+		SetInBootClub(Addressing.Addr)
+		GetHatClub() []Addressing.Addr
+		GetBootClub() []Addressing.Addr
 		IsInHatClub(string) bool
 		IsInBootClub(string) bool
 		GetAddrDistance(string) int
@@ -41,6 +43,7 @@ type (
 	}
 
 	GeminiParams struct {
+		Ring       Ring.Ring
 		AddrLength int
 		HatLength  int
 		BootLength int
@@ -58,16 +61,17 @@ type (
 	Geminus struct {
 		Params   GeminiParams
 		Addr     Addressing.Addr
-		State    []Addressing.Addr
-		HatClub  Range
-		BootClub Range
+		HatClub  []Addressing.Addr
+		BootClub []Addressing.Addr
 	}
 )
 
 func NewGeminus(addr string) *Geminus {
 	gAddr := Addressing.NewAddress(addr)
-	geminiParams := GeminiParams{
-		AddrLength: 64,
+	gRing := Ring.NewGeminiRing(160)
+	gParams := GeminiParams{
+		Ring:       gRing,
+		AddrLength: gRing.Order,
 		HatLength:  5,
 		BootLength: 5,
 		ClubSize: struct {
@@ -80,95 +84,79 @@ func NewGeminus(addr string) *Geminus {
 	}
 
 	return &Geminus{
-		Params: geminiParams,
-		Addr:   gAddr,
-		// this allocation should be dynamic per need
-		State: make([]Addressing.Addr, geminiParams.ClubSize.Hat+geminiParams.ClubSize.Boot, geminiParams.ClubSize.Hat+geminiParams.ClubSize.Boot),
-		HatClub: Range{
-			Start: 0,
-			End:   geminiParams.ClubSize.Hat - 1,
-		},
-		BootClub: Range{
-			Start: geminiParams.ClubSize.Hat,
-			End:   (geminiParams.ClubSize.Boot + geminiParams.ClubSize.Hat) - 1,
-		},
+		Params:   gParams,
+		Addr:     gAddr,
+		HatClub:  make([]Addressing.Addr, gParams.ClubSize.Hat, gParams.ClubSize.Hat),
+		BootClub: make([]Addressing.Addr, gParams.ClubSize.Boot, gParams.ClubSize.Boot),
 	}
 }
 
 func (g *Geminus) Init() error {
 	g.Addr.Hash()
-	if len(g.Addr.GetHash()) != g.Params.AddrLength {
+	if len(g.Addr.GetHash()) != g.Params.AddrLength/8 {
 		return errors.New("Wrong Gemini Address Length Param or Faulty Hash Function")
 	}
 	return nil
 }
 
 func (g *Geminus) GetState() []Addressing.Addr {
-	return g.State
+	return []Addressing.Addr(append(g.HatClub, g.BootClub...))
 }
 
 func (g *Geminus) SetState(addr string) int {
-	isInHatClub := g.IsInBootClub(addr)
+	isInHatClub := g.IsInHatClub(addr)
 	isInBootClub := g.IsInBootClub(addr)
 
+	haddr := Addressing.NewAddress(addr, true)
+	distance := g.Params.Ring.GetDistance(g.Addr.GetHash(), haddr.GetHash())
+
+	fmt.Printf("Found distance %d", distance)
+	fmt.Printf("\nIs in Hat?: %t, Is in Boot?: %t (%s)", isInHatClub, isInBootClub, addr)
+
 	if isInHatClub {
-		// sort
-		// add to proper position (according to numerical distance)
-		haddr := Addressing.NewAddress(addr, true)
-		d, _ := Tools.GetLSDistance(g.Addr.GetHash(), haddr.GetHash()) // not sure if this is the right "numerical distance" fn
-		g.SetInHatClub(d, haddr)
+		g.SetInHatClub(haddr)
 		return 0
 	} else if isInBootClub {
-		// sort
-		// add to proper position (according to numerical distance)
-		haddr := Addressing.NewAddress(addr, true)
-		d, _ := Tools.GetLSDistance(g.Addr.GetHash(), haddr.GetHash()) // not sure if this is the right "numerical distance" fn
-		g.SetInBootClub(d, haddr)
+		g.SetInBootClub(haddr)
 		return 0
 	}
 	return 1
 }
 
 func (g *Geminus) GetHatClub() []Addressing.Addr {
-	return g.State[g.HatClub.Start:g.HatClub.End]
+	return g.HatClub
 }
 
 func (g *Geminus) GetBootClub() []Addressing.Addr {
-	return g.State[g.BootClub.Start:g.BootClub.End]
+	return g.BootClub
 }
 
-func (g *Geminus) SetInHatClub(d int, v Addressing.Addr) {
-	g.State[g.HatClub.Start+d] = v
+func (g *Geminus) SetInHatClub(v Addressing.Addr) {
+	g.HatClub = append(g.HatClub, v)
 }
 
-func (g *Geminus) SetInBootClub(d int, v Addressing.Addr) {
-	g.State[g.BootClub.Start+d] = v
+func (g *Geminus) SetInBootClub(v Addressing.Addr) {
+	g.BootClub = append(g.BootClub, v)
 }
 
 func (g *Geminus) IsInHatClub(addr string) bool {
 	haddr := Addressing.NewAddress(addr, true)
-	hatStart, hatEnd := 0, g.Params.HatLength
-	myHatCase, addrHatCase := g.Addr.GetHash()[hatStart:hatEnd], haddr.GetHash()[hatStart:hatEnd]
+	hatStart, hatEnd := 0, g.Params.HatLength-1
+	myHatCase, addrHatCase := g.Addr.GetBinaryHash()[hatStart:hatEnd], haddr.GetBinaryHash()[hatStart:hatEnd]
+
+	fmt.Printf("My hash %b, their hash: %b, start: %d, end: %d\n", myHatCase, addrHatCase, hatStart, hatEnd)
 
 	return bytes.Compare(myHatCase, addrHatCase) == 0
 }
 
 func (g *Geminus) IsInBootClub(addr string) bool {
-	haddr := Addressing.NewAddress(addr, true)
+	haddr := *Addressing.NewAddress(addr, true)
 	bootStart, bootEnd := (g.Params.AddrLength-1)-g.Params.BootLength, (g.Params.AddrLength - 1)
-	myBootCase, addrBootCase := g.Addr.GetHash()[bootStart:bootEnd], haddr.GetHash()[bootStart:bootEnd]
+	myBootCase, addrBootCase := g.Addr.GetBinaryHash()[bootStart:bootEnd], haddr.GetBinaryHash()[bootStart:bootEnd]
+
+	fmt.Printf("My hash %b, their hash: %b, start: %d, end: %d\n", myBootCase, addrBootCase, bootStart, bootEnd)
 
 	return bytes.Compare(myBootCase, addrBootCase) == 0
-}
-
-func (g *Geminus) GetAddrDistance(addr string) int {
-	haddr := Addressing.NewAddress(addr, true)
-	d, err := Tools.GetLSDistance(g.Addr.GetHash(), haddr.GetHash())
-	if err != nil {
-		return -1
-	}
-
-	return d
 }
 
 func (g *Geminus) SearchState(c Case, needle string) Addressing.Addr {
@@ -198,6 +186,8 @@ func (g *Geminus) Route(destination string, payload []byte) (Addressing.Addr, Ro
 	// a lot of functions like this hash the given []byte address
 	// we should hash a given address once (from the arguments)
 	// to avoid unnecessary resource waste
+
+	// TODO: add numerical distance routing
 	if g.IsInHatClub(destination) {
 		foundAddr = g.SearchState(Hat, destination)
 		status = HatFind
