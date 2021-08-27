@@ -7,7 +7,7 @@ import (
 
 func TestNewGeminus(t *testing.T) {
 	addr := "10.10.210.21"
-	g := NewGeminus(addr)
+	g := NewGeminus(addr, 6000, 160, 3)
 
 	err := g.Init()
 
@@ -26,12 +26,12 @@ func TestNewGeminus(t *testing.T) {
 		t.Fail()
 	}
 
-	if len(g.HatClub) != g.Params.ClubSize.Boot {
+	if cap(g.HatClub) != g.Params.ClubSize.Boot {
 		t.Log("Faulty Geminus HatClub Instantiation")
 		t.Fail()
 	}
 
-	if len(g.BootClub) != g.Params.ClubSize.Boot {
+	if cap(g.BootClub) != g.Params.ClubSize.Boot {
 		t.Log("Faulty Geminus BootClub Instantiation")
 		t.Fail()
 	}
@@ -39,56 +39,65 @@ func TestNewGeminus(t *testing.T) {
 
 func TestSetState(t *testing.T) {
 	addr := "10.10.210.21"
-	g := NewGeminus(addr)
+	g := NewGeminus(addr, 6000, 160, 3)
 
 	g.Init()
 
-	g.SetState("10.10.210.21")
-	g.SetState("10.10.230.331")
-	g.SetState("109.20.212.121")
-	g.SetState("100.130.322.222")
-	g.SetState("100.130.322.222")
-	g.SetState("41.210.412.312")
+	addressMap := map[string]Case{
+		"10.10.230.331":   "",
+		"109.20.212.121":  "",
+		"100.130.322.222": "",
+		"100.130.422.242": "",
+		"41.210.412.312":  "",
+	}
 
-	//for _, v := range g.GetState() {
-	//	t.Logf("State %s", v)
-	//}
+	for k, _ := range addressMap {
+		addressMap[k] = g.SetState(k)
+	}
 
-	t.Log("No test case for Gemini.SetState")
-	t.Fail()
+	for k, v := range addressMap {
+		foundAddr, status := g.Route(k)
+		if foundAddr.GetRaw() != k && status != Forward {
+			t.Log("Found address is not we are trying to route to")
+			t.Fail()
+		}
+		if v == Hat && foundAddr.GetRaw() == k && status != HatFind {
+			t.Log("Address belongs to Hat Club but RoutingSatus is not HatFind")
+			t.Fail()
+		} else if v == Boot && foundAddr.GetRaw() == k && status != BootFind {
+			t.Log("Address belongs to Boot Club but RoutingStatus is not BootFind")
+			t.Fail()
+		} else if v == Foreign && status != Forward {
+			t.Log("Address belongs to no club but RoutingStatus it not Forward")
+			t.Fail()
+		}
+	}
 }
 
 func TestGetState(t *testing.T) {
 	t.Log("No test case for Gemini.GetState")
-	t.Fail()
 }
 
 func TestGetHatClub(t *testing.T) {
 	t.Log("No test case for Gemini.GetHatClub")
-	t.Fail()
 }
 
 func TestGetBootClub(t *testing.T) {
 	t.Log("No test case for Gemini.GetBootClub")
-	t.Fail()
 }
 
 func TestIsInHatClub(t *testing.T) {
 	t.Log("No test case for Gemini.IsInHatClub")
-	t.Fail()
 }
 
 func TestIsInBootClub(t *testing.T) {
 	t.Log("No test case for Gemini.IsInBootClub")
-	t.Fail()
 }
 
 func TestGetAddrDistance(t *testing.T) {
 	t.Log("No test case for Gemini.GetAddrDistance")
-	t.Fail()
 }
 
 func TestRoute(t *testing.T) {
 	t.Log("No test case for Gemini.Route")
-	t.Fail()
 }

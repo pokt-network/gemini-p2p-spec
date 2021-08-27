@@ -7,8 +7,10 @@ import (
 	RandomData "github.com/Pallinder/go-randomdata"
 )
 
-const HatClubSize = 187
-const BootClubSize = 187
+const NetworkNodesCount = 6000
+const AddressCaseLength = 3
+const HatClubSize = 6000/2 ^ 3
+const BootClubSize = 6000/2 ^ 3
 
 type (
 	Stats struct {
@@ -30,8 +32,8 @@ func GetAddress() *Addressing.Address {
 func Categorize(stats *Stats, addr *Addressing.Address) {
 	addrBinHash := addr.GetBinaryHash()
 
-	hatcase := addrBinHash[0:4]
-	bootcase := addrBinHash[len(addrBinHash)-6 : len(addrBinHash)-1]
+	hatcase := addrBinHash[0:AddressCaseLength]
+	bootcase := addrBinHash[len(addrBinHash)-1-AddressCaseLength : len(addrBinHash)-1]
 
 	if _, exists := stats.HatClubs[string(hatcase)]; exists {
 		stats.HatClubs[string(hatcase)] = append(stats.HatClubs[string(hatcase)], addr)
@@ -64,9 +66,9 @@ func PrintStats(stats *Stats) {
 		fmt.Println("--------------------------------------")
 		fmt.Printf("\n\nClub[%s]: Length=%d\n", k, len(v))
 		fmt.Println("--------------------------------------")
-		for _, a := range v {
-			fmt.Printf("\tValues: %v \t", a.Raw)
-		}
+		//for _, a := range v {
+		//	fmt.Printf("\tValues: %v \t", a.Raw)
+		//}
 	}
 
 	fmt.Printf("\n\n*) BootClubs:\n")
@@ -77,9 +79,9 @@ func PrintStats(stats *Stats) {
 		fmt.Println("--------------------------------------")
 		fmt.Printf("\n\nClub[%s]: Length=%d\n", k, len(v))
 		fmt.Println("--------------------------------------")
-		for _, a := range v {
-			fmt.Printf("\tValues: %v \t", a.Raw)
-		}
+		//for _, a := range v {
+		//	fmt.Printf("\tValues: %v \t", a.Raw)
+		//}
 	}
 }
 
@@ -107,7 +109,7 @@ func main() {
 	addressCount := 0
 	addressPool := make([]*Addressing.Address, 0, 6000)
 
-	for addressCount < 6000 {
+	for addressCount < NetworkNodesCount {
 		addr := GetAddress()
 		if isAddressUnique(addressPool, addr) {
 			addressPool = append(addressPool, addr)
@@ -120,9 +122,9 @@ func main() {
 
 	PrintStats(stats)
 
-	fmt.Println("======= Addressess ========")
-	for _, v := range addressPool {
-		fmt.Printf("%s\t", v.Raw)
-	}
+	//fmt.Println("======= Addressess ========")
+	//for _, v := range addressPool {
+	//	fmt.Printf("%s\t", v.Raw)
+	//}
 	fmt.Println("Done")
 }
