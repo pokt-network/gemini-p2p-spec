@@ -66,25 +66,25 @@ type (
 	}
 )
 
-func NewGeminiConfig(networkCapacity, networkOrder, peerOrder int) *GeminiConfig {
+func NewGeminiConfig(networkCapacity, networkOrder, peerOrderA, peerOrderB int) *GeminiConfig {
 	return &GeminiConfig{
 		Ring:       Ring.NewGeminiRing(networkOrder),
 		AddrLength: networkOrder,
-		HatLength:  peerOrder,
-		BootLength: peerOrder,
+		HatLength:  peerOrderA,
+		BootLength: peerOrderB,
 		ClubSize: struct {
 			Hat  int
 			Boot int
 		}{
-			Hat:  networkCapacity/2 ^ peerOrder,
-			Boot: networkCapacity/2 ^ peerOrder,
+			Hat:  networkCapacity/2 ^ peerOrderA,
+			Boot: networkCapacity/2 ^ peerOrderB,
 		},
 	}
 }
 
-func NewGeminus(addr string, networkCapacity, networkOrder, peerOrder int) *Geminus {
+func NewGeminus(addr string, networkCapacity, networkOrder, peerOrderA, peerOrderB int) *Geminus {
 	gAddr := Addressing.NewAddress(addr)
-	gParams := NewGeminiConfig(networkCapacity, networkOrder, peerOrder)
+	gParams := NewGeminiConfig(networkCapacity, networkOrder, peerOrderA, peerOrderB)
 
 	return &Geminus{
 		Params:   *gParams,
