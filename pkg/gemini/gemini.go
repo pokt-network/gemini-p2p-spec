@@ -206,15 +206,18 @@ func (g *Geminus) Route(destination string) (Addressing.Addr, RoutingStatus) {
 	}
 
 	if foundAddr == nil {
-		bootClub, _ := g.GetClub(Boot)
-		bootClubSize := len(bootClub)
+		hatClub, _ := g.GetClub(Hat)
+		hatClubSize := len(hatClub)
 
-		// temporary if for testing purposes
-		// in real life, a node will wait til it has seeded before it starts routing
-		if bootClubSize > 0 {
-			foundAddr = bootClub[Tools.PickRandom(1, bootClubSize+1)]
-			status = RandomForward
+		haddr := Addressing.NewAddress(destination, true)
+
+		haveSameBootCase := true
+		for hatClubSize > 0 && haveSameBootCase {
+			foundAddr = hatClub[Tools.PickRandom(1, hatClubSize+1)]
+			haveSameBootCase, _ = g.HaveSameClub(Boot, foundAddr, haddr)
 		}
+
+		status = RandomForward
 	}
 
 	if foundAddr == nil {

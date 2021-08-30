@@ -231,10 +231,10 @@ func main() {
 			} else {
 				for foundPeer := findInPeerPool(peerPool, foundAddr); foundPeer.Addr.GetRaw() != dest.Addr.GetRaw(); foundPeer = findInPeerPool(peerPool, foundAddr) {
 					foundAddr, status = foundPeer.Route(dest.Addr.GetRaw())
-					if hopsCount > 20 {
+					hopsCount++
+					if hopsCount > 30 {
 						break
 					}
-					hopsCount++
 				}
 			}
 
@@ -250,36 +250,16 @@ func main() {
 			break
 
 		case Gemini.RandomForward:
-			//fmt.Println("Since it is a boot forward, they gonna have the same hat case")
-			//fmt.Println("foundAddr hatcase", foundAddr.GetBinaryHash()[0:target.Params.HatLength-1])
-			//fmt.Println("dest addr hatcase", dest.Addr.GetBinaryHash()[0:target.Params.HatLength-1])
-
-			//foundPeer := findInPeerPool(peerPool, foundAddr)
-			//for _, v := range foundPeer.Clubs[Gemini.Hat] {
-			//	fmt.Println(v.GetRaw())
-			//	if dest.Addr.GetRaw() == v.GetRaw() {
-			//		// fmt.Println(dest.Addr.GetRaw(), v.GetRaw())
-			//		fmt.Println("=====> found it!", dest.Addr.GetRaw(), v.GetRaw())
-			//	}
-			//}
-
-			//d := foundPeer.SearchState(Gemini.Hat, dest.Addr.GetRaw())
-			//if d != nil {
-			//	fmt.Println("found it again!")
-			//} else {
-			//	fmt.Println("Right mate, riiiiight")
-			//}
-			//panic("ss")
 			hopsCount := 1
 			if foundAddr.GetRaw() == dest.Addr.GetRaw() {
 				hopsCount = 2
 			} else {
 				for foundPeer := findInPeerPool(peerPool, foundAddr); foundPeer.Addr.GetRaw() != dest.Addr.GetRaw(); foundPeer = findInPeerPool(peerPool, foundAddr) {
 					foundAddr, status = foundPeer.Route(dest.Addr.GetRaw())
-					if hopsCount > 20 {
+					hopsCount++
+					if hopsCount > 30 {
 						break
 					}
-					hopsCount++
 				}
 			}
 
@@ -322,8 +302,8 @@ func main() {
 		undef int
 	}{
 		hf:    0,
-		bf:    make([]int, 22, 22),
-		rf:    make([]int, 22, 22),
+		bf:    make([]int, 32, 32),
+		rf:    make([]int, 32, 32),
 		undef: 0,
 	}
 
