@@ -6,91 +6,78 @@ import (
 	Addressing "gemelos/pkg/addressing"
 	Ring "gemelos/pkg/ring"
 	Tools "gemelos/pkg/tools"
-	"sort"
+	"math"
 )
 
-type Case string
+type Club string
 
 const (
-	Hat     Case = "Hat"
-	Boot    Case = "Boot"
-	Foreign Case = "Foreign"
+	Hat          Club = "Hat"
+	Boot              = "Boot"
+	Unrecognized      = "Unrecognized"
 )
 
 type RoutingStatus string
 
 const (
-	HatFind   RoutingStatus = "Hatfind"
-	BootFind  RoutingStatus = "Bootfind"
-	Forward                 = "Forward"
-	Undefined               = "Undefined"
+	HatRoute      RoutingStatus = "HatRoute"
+	BootForward                 = "BootForward"
+	RandomForward               = "RandomForward"
+	Undefined                   = "Undefined"
 )
 
 type (
 	Gemini interface {
 		Init() error
 		GetState() []Addressing.Addr
-		SetState(addr string) Case
-		SetInHatClub(Addressing.Addr)
-		SetInBootClub(Addressing.Addr)
-		GetHatClub() []Addressing.Addr
-		GetBootClub() []Addressing.Addr
-		IsInHatClub(string) bool
-		IsInBootClub(string) bool
+		SetState(addr string) (Club, error)
+		AddInClub(Club, Addressing.Addr) error
+		GetClub(Club) ([]Addressing.Addr, error)
+		HaveSameClub(Club, Addressing.Addr, Addressing.Addr) (bool, error)
+		BelongsInClub(Club, string) (bool, error)
 		GetAddrDistance(string) int
 		Route(string) (Addressing.Addr, RoutingStatus)
-		SearchState(Case, string) Addressing.Addr
+		SearchState(Club, string) Addressing.Addr
 	}
 
 	GeminiConfig struct {
-		Ring       Ring.Ring
+		Ring       *Ring.GeminiRing
 		AddrLength int
 		HatLength  int
 		BootLength int
-		ClubSize   struct {
-			Hat  int
-			Boot int
-		}
-	}
-
-	Range struct {
-		Start int
-		End   int
+		ClubSize   map[Club]int
 	}
 
 	Geminus struct {
-		Params   GeminiConfig
-		Addr     Addressing.Addr
-		HatClub  []Addressing.Addr
-		BootClub []Addressing.Addr
+		Params *GeminiConfig
+		Addr   Addressing.Addr
+		Clubs  map[Club][]Addressing.Addr
 	}
 )
 
-func NewGeminiConfig(networkCapacity, networkOrder, peerOrderA, peerOrderB int) *GeminiConfig {
+func NewGeminiConfig(networkCapacity, networkOrder, hatLength, bootLength int) *GeminiConfig {
 	return &GeminiConfig{
 		Ring:       Ring.NewGeminiRing(networkOrder),
 		AddrLength: networkOrder,
-		HatLength:  peerOrderA,
-		BootLength: peerOrderB,
-		ClubSize: struct {
-			Hat  int
-			Boot int
-		}{
-			Hat:  networkCapacity/2 ^ peerOrderA,
-			Boot: networkCapacity/2 ^ peerOrderB,
+		HatLength:  hatLength,
+		BootLength: bootLength,
+		ClubSize: map[Club]int{
+			Hat:  int(float64(networkCapacity) / math.Pow(2, float64(hatLength))),
+			Boot: int(float64(networkCapacity) / math.Pow(2, float64(hatLength))),
 		},
 	}
 }
 
-func NewGeminus(addr string, networkCapacity, networkOrder, peerOrderA, peerOrderB int) *Geminus {
+func NewGeminus(addr string, gParams *GeminiConfig) *Geminus {
 	gAddr := Addressing.NewAddress(addr)
-	gParams := NewGeminiConfig(networkCapacity, networkOrder, peerOrderA, peerOrderB)
 
 	return &Geminus{
-		Params:   *gParams,
-		Addr:     gAddr,
-		HatClub:  make([]Addressing.Addr, 0, gParams.ClubSize.Hat),
-		BootClub: make([]Addressing.Addr, 0, gParams.ClubSize.Boot),
+		Params: gParams,
+		Addr:   gAddr,
+		Clubs: map[Club][]Addressing.Addr{
+			Hat:  make([]Addressing.Addr, 0, gParams.ClubSize[Hat]),
+			Boot: make([]Addressing.Addr, 0, gParams.ClubSize[Boot]),
+		},
 	}
 }
 
@@ -103,120 +90,138 @@ func (g *Geminus) Init() error {
 }
 
 func (g *Geminus) GetState() []Addressing.Addr {
-	return []Addressing.Addr(append(g.HatClub, g.BootClub...))
+	return []Addressing.Addr(append(g.Clubs[Hat], g.Clubs[Boot]...))
 }
 
-func (g *Geminus) SetState(addr string) Case {
-	isInHatClub := g.IsInHatClub(addr)
-	isInBootClub := g.IsInBootClub(addr)
+func (g *Geminus) SetState(addr string) (Club, error) {
+	var club Club
 
-	haddr := Addressing.NewAddress(addr, true)
-	// what do we do with distance?
-	// distance := g.Params.Ring.GetDistance(g.Addr.GetHash(), haddr.GetHash())
-
-	if isInHatClub {
-		g.SetInHatClub(haddr)
-		return Hat
-	} else if isInBootClub {
-		g.SetInBootClub(haddr)
-		return Boot
+	if c, _ := g.BelongsInClub(Hat, addr); c {
+		club = Hat
+	} else if c, _ := g.BelongsInClub(Boot, addr); c {
+		club = Boot
+	} else {
+		return Unrecognized, errors.New("Unrecognized club/case")
 	}
-	return Foreign
-}
 
-func (g *Geminus) GetHatClub() []Addressing.Addr {
-	return g.HatClub
-}
-
-func (g *Geminus) GetBootClub() []Addressing.Addr {
-	return g.BootClub
-}
-
-func (g *Geminus) SetInHatClub(v Addressing.Addr) {
-	g.HatClub = append(g.HatClub, v)
-}
-
-func (g *Geminus) SetInBootClub(v Addressing.Addr) {
-	g.BootClub = append(g.BootClub, v)
-}
-
-func (g *Geminus) IsInHatClub(addr string) bool {
 	haddr := Addressing.NewAddress(addr, true)
-	hatStart, hatEnd := 0, g.Params.HatLength-1
-	myHatCase, addrHatCase := g.Addr.GetBinaryHash()[hatStart:hatEnd], haddr.GetBinaryHash()[hatStart:hatEnd]
 
-	return bytes.Compare(myHatCase, addrHatCase) == 0
+	g.AddInClub(club, haddr)
+
+	return club, nil
 }
 
-func (g *Geminus) IsInBootClub(addr string) bool {
-	haddr := *Addressing.NewAddress(addr, true)
-
-	myAddrLength, haddrLength := g.Addr.GetBinBitLength(), haddr.GetBinBitLength()
-
-	haddrBootStart, haddrBootEnd := (haddrLength-1)-g.Params.BootLength, (haddrLength - 1)
-	myBootStart, myBootEnd := (myAddrLength-1)-g.Params.BootLength, (myAddrLength - 1)
-
-	myBootCase, addrBootCase := g.Addr.GetBinaryHash()[myBootStart:myBootEnd], haddr.GetBinaryHash()[haddrBootStart:haddrBootEnd]
-
-	return bytes.Compare(myBootCase, addrBootCase) == 0
+func (g *Geminus) GetClub(club Club) ([]Addressing.Addr, error) {
+	if club != Hat && club != Boot {
+		return nil, errors.New("Unrecognized club/case")
+	}
+	return g.Clubs[club], nil
 }
 
-func (g *Geminus) SearchState(c Case, needle string) Addressing.Addr {
-	var haystack []Addressing.Addr
+func (g *Geminus) AddInClub(club Club, v Addressing.Addr) error {
+	if club != Hat && club != Boot {
+		return errors.New("Unrecognized club/case")
+	}
+
+	g.Clubs[club] = append(g.Clubs[club], v)
+
+	return nil
+}
+
+func (g *Geminus) HaveSameClub(club Club, haddrA Addressing.Addr, haddrB Addressing.Addr) (bool, error) {
+	var caseA, caseB []byte
+
+	if club == Hat {
+		caseStart, caseEnd := 0, g.Params.HatLength-1
+		caseA = haddrA.GetBinaryHash()[caseStart:caseEnd]
+		caseB = haddrB.GetBinaryHash()[caseStart:caseEnd]
+	} else if club == Boot {
+		haddrALength, haddrBLength := haddrA.GetBinBitLength(), haddrB.GetBinBitLength()
+
+		haddrACaseStart, haddrACaseEnd := (haddrALength-1)-g.Params.BootLength, (haddrALength - 1)
+		haddrBCaseStart, haddrBCaseEnd := (haddrBLength-1)-g.Params.BootLength, (haddrBLength - 1)
+
+		caseA = haddrA.GetBinaryHash()[haddrACaseStart:haddrACaseEnd]
+		caseB = haddrB.GetBinaryHash()[haddrBCaseStart:haddrBCaseEnd]
+	} else {
+		return false, errors.New("Unrecognized club/case")
+	}
+
+	return bytes.Compare(caseA, caseB) == 0, nil
+
+}
+
+func (g *Geminus) BelongsInClub(club Club, addr string) (bool, error) {
+	haddr := Addressing.NewAddress(addr, true)
+	return g.HaveSameClub(club, g.Addr, haddr)
+}
+
+func (g *Geminus) SearchState(c Club, needle string) Addressing.Addr {
+	var item Addressing.Addr
+
+	club, err := g.GetClub(c)
+	if err != nil {
+		panic(err)
+	}
 
 	hneedle := Addressing.NewAddress(needle, true)
 
-	if c == Hat {
-		haystack = g.GetHatClub()
-	} else if c == Boot {
-		haystack = g.GetBootClub()
+	for _, v := range club {
+		if bytes.Compare(v.GetBinaryHash(), hneedle.GetBinaryHash()) == 0 {
+			item = v
+		}
 	}
 
-	// initial thoughts, we can perhaps find by numerical distance aka o(1)
-	// think about this later with otto
-	el := sort.Search(len(haystack), func(i int) bool {
-		return bytes.Compare(haystack[i].GetHash(), hneedle.GetHash()) == 0
-	})
-
-	if el < len(haystack) {
-		return haystack[el]
-	}
-
-	return nil
+	return item
 }
 
 func (g *Geminus) Route(destination string) (Addressing.Addr, RoutingStatus) {
 	var foundAddr Addressing.Addr
 	var status RoutingStatus
 
-	// a lot of functions like this hash the given []byte address
+	// a lot of functions like this hash the given string address
 	// we should hash a given address once (from the arguments)
 	// to avoid unnecessary resource waste
 
 	// TODO: add numerical distance routing
-	if g.IsInHatClub(destination) {
+	if belongs, _ := g.BelongsInClub(Hat, destination); belongs {
 		foundAddr = g.SearchState(Hat, destination)
-		if foundAddr != nil {
-			return foundAddr, HatFind
-		}
+		status = HatRoute
 	}
 
-	if g.IsInBootClub(destination) {
-		foundAddr = g.SearchState(Boot, destination)
-		if foundAddr != nil {
-			return foundAddr, BootFind
+	if foundAddr == nil {
+		haddr := Addressing.NewAddress(destination, true)
+		bootClub, _ := g.GetClub(Boot)
+		for _, baddr := range bootClub {
+			haveSameHatClub, err := g.HaveSameClub(Hat, haddr, baddr)
+			if err != nil {
+				panic(err)
+			}
+			if haveSameHatClub {
+				foundAddr = baddr
+				status = BootForward
+				break
+			}
 		}
 	}
 
 	if foundAddr == nil {
-		bootClubSize := len(g.BootClub)
-		// temporary if for testing purposes
-		// in real life, a node will wait til it has seeded before it starts routing
-		if bootClubSize > 0 {
-			return g.GetBootClub()[Tools.PickRandom(1, bootClubSize+1)], Forward
-		} else {
-			status = Undefined
+		hatClub, _ := g.GetClub(Hat)
+		hatClubSize := len(hatClub)
+
+		haddr := Addressing.NewAddress(destination, true)
+
+		haveSameBootCase := true
+		for hatClubSize > 0 && haveSameBootCase {
+			foundAddr = hatClub[Tools.PickRandom(1, hatClubSize+1)]
+			haveSameBootCase, _ = g.HaveSameClub(Boot, foundAddr, haddr)
 		}
+
+		status = RandomForward
+	}
+
+	if foundAddr == nil {
+		status = Undefined
 	}
 
 	return foundAddr, status

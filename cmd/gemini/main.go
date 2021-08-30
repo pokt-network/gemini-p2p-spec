@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 
+	Addressing "gemelos/pkg/addressing"
 	Gemini "gemelos/pkg/gemini"
 
 	RandomData "github.com/Pallinder/go-randomdata"
@@ -110,7 +111,7 @@ func pickRandomPeers(pp []*Gemini.Geminus, count int) []*Gemini.Geminus {
 	return stack
 }
 
-func Categorize(stats *Stats, p *Gemini.Geminus) {
+func Categorize(stats *Stats, p *Gemini.Geminus) *Stats {
 	addrLength := p.Addr.GetBinBitLength()
 	addrBinHash := p.Addr.GetBinaryHash()
 
@@ -122,7 +123,7 @@ func Categorize(stats *Stats, p *Gemini.Geminus) {
 		stats.HatClubs[string(hatcase)] = append(stats.HatClubs[string(hatcase)], p)
 	} else {
 		stats.HatClubs[string(hatcase)] = append(
-			make([]*Gemini.Geminus, 0, p.Params.ClubSize.Hat),
+			make([]*Gemini.Geminus, 0, p.Params.ClubSize[Gemini.Hat]),
 			p,
 		)
 		stats.HatClubsCount++
@@ -132,11 +133,23 @@ func Categorize(stats *Stats, p *Gemini.Geminus) {
 		stats.BootClubs[string(bootcase)] = append(stats.BootClubs[string(bootcase)], p)
 	} else {
 		stats.BootClubs[string(bootcase)] = append(
-			make([]*Gemini.Geminus, 0, p.Params.ClubSize.Boot),
+			make([]*Gemini.Geminus, 0, p.Params.ClubSize[Gemini.Boot]),
 			p,
 		)
 		stats.BootClubsCount++
 	}
+
+	return stats
+}
+
+func findInPeerPool(pp []*Gemini.Geminus, addr Addressing.Addr) *Gemini.Geminus {
+	var peer *Gemini.Geminus = nil
+	for _, p := range pp {
+		if p.Addr.GetRaw() == addr.GetRaw() {
+			peer = p
+		}
+	}
+	return peer
 }
 
 func main() {
@@ -147,53 +160,128 @@ func main() {
 	var peer *Gemini.Geminus
 	fmt.Println("Generating peers.")
 	for peerCount < NetworkNodesCount {
-		peer = Gemini.NewGeminus(GetRandomIp(), NetworkNodesCount, 160, 5, 3)
+		gParams := Gemini.NewGeminiConfig(NetworkNodesCount, 160, 5, 3)
+		peer = Gemini.NewGeminus(GetRandomIp(), gParams)
 		if isPeerUnique(peerPool, peer) {
 			peer.Init()
 			peerPool = append(peerPool, peer)
 			peerCount++
 			Categorize(clubStats, peer)
 		}
-		fmt.Println(peerCount)
 	}
 
-	target := pickRandomPeer(peerPool)
 	fmt.Println("Seeding...")
-	for i := 0; i < len(peerPool); i++ {
-		if target.Addr.GetRaw() != peerPool[i].Addr.GetRaw() {
-			target.SetState(peerPool[i].Addr.GetRaw())
+	for _, k := range clubStats.HatClubs {
+		fmt.Printf(".")
+		for i := 0; i < len(k); i++ {
+			for j := 0; j < len(k); j++ {
+				if i != j {
+					k[i].SetState(k[j].Addr.GetRaw())
+				}
+			}
 		}
 	}
 
-	// destinations := pickRandomPeers(peerPool, 3000)
+	for _, k := range clubStats.BootClubs {
+		fmt.Printf(".")
+		for i := 0; i < len(k); i++ {
+			for j := 0; j < len(k); j++ {
+				if i != j {
+					k[i].SetState(k[j].Addr.GetRaw())
+				}
+			}
+		}
+	}
 
-	stats := struct {
-		hf    int
-		bf    int
-		fwd   int
-		undef int
-	}{hf: 0, bf: 0, fwd: 0, undef: 0}
+	target := pickRandomPeer(peerPool)
+	//	for i := 0; i < len(peerPool); i++ {
+	//		if target.Addr.GetRaw() != peerPool[i].Addr.GetRaw() {
+	//			target.SetState(peerPool[i].Addr.GetRaw())
+	//		}
+	//	}
+
+	destinations := pickRandomPeers(peerPool, 600)
+
+	stats := make([]struct {
+		rs        Gemini.RoutingStatus
+		hopsCount int
+	}, 0, 6000)
 
 	fmt.Println("Playing routing scenario...")
-	for _, dest := range peerPool {
-		fmt.Println("Asking peer:", target.Addr.GetRaw(), "for:", dest.Addr.GetRaw())
-		_, status := target.Route(dest.Addr.GetRaw())
-		fmt.Println(status)
+
+	for _, dest := range destinations {
+		foundAddr, status := target.Route(dest.Addr.GetRaw())
+
 		switch status {
-		case Gemini.HatFind:
-			stats.hf++
+		case Gemini.HatRoute:
+			stats = append(
+				stats, struct {
+					rs        Gemini.RoutingStatus
+					hopsCount int
+				}{
+					rs:        Gemini.HatRoute,
+					hopsCount: 1,
+				})
 			break
 
-		case Gemini.BootFind:
-			stats.bf++
+		case Gemini.BootForward:
+			hopsCount := 1
+			if foundAddr.GetRaw() == dest.Addr.GetRaw() {
+				hopsCount = 2
+			} else {
+				for foundPeer := findInPeerPool(peerPool, foundAddr); foundPeer.Addr.GetRaw() != dest.Addr.GetRaw(); foundPeer = findInPeerPool(peerPool, foundAddr) {
+					foundAddr, status = foundPeer.Route(dest.Addr.GetRaw())
+					hopsCount++
+					if hopsCount > 30 {
+						break
+					}
+				}
+			}
+
+			stats = append(
+				stats, struct {
+					rs        Gemini.RoutingStatus
+					hopsCount int
+				}{
+					rs:        Gemini.BootForward,
+					hopsCount: hopsCount,
+				})
+
 			break
 
-		case Gemini.Forward:
-			stats.fwd++
+		case Gemini.RandomForward:
+			hopsCount := 1
+			if foundAddr.GetRaw() == dest.Addr.GetRaw() {
+				hopsCount = 2
+			} else {
+				for foundPeer := findInPeerPool(peerPool, foundAddr); foundPeer.Addr.GetRaw() != dest.Addr.GetRaw(); foundPeer = findInPeerPool(peerPool, foundAddr) {
+					foundAddr, status = foundPeer.Route(dest.Addr.GetRaw())
+					hopsCount++
+					if hopsCount > 30 {
+						break
+					}
+				}
+			}
+
+			stats = append(
+				stats, struct {
+					rs        Gemini.RoutingStatus
+					hopsCount int
+				}{
+					rs:        Gemini.RandomForward,
+					hopsCount: hopsCount,
+				})
 			break
 
 		case Gemini.Undefined:
-			stats.undef++
+			stats = append(
+				stats, struct {
+					rs        Gemini.RoutingStatus
+					hopsCount int
+				}{
+					rs:        Gemini.Undefined,
+					hopsCount: 0,
+				})
 			break
 
 		default:
@@ -204,11 +292,44 @@ func main() {
 
 	PrintStats(clubStats)
 	fmt.Println("Stats")
-	fmt.Println("For a random node who has been given 6000 random address to route:")
-	fmt.Printf("\n Hat Club Size :%v, Boot Club Size: %v\n", len(target.HatClub), len(target.BootClub))
-	fmt.Printf("\n%v have been found in 1 hop (hat)\n", stats.hf)
-	fmt.Printf("\n%v have been found in 1 hop (boot)\n", stats.bf)
-	fmt.Printf("\n%v have been found in >2 hop (fwd)\n", stats.fwd)
-	fmt.Printf("\n%v cause undefined behavior (cuz no wait until seed n stuff)\n", stats.undef)
+	fmt.Println("For a random node who has been given 500 random address to route:")
+	fmt.Printf("\n Hat Club Size :%v, Boot Club Size: %v\n", len(target.Clubs[Gemini.Hat]), len(target.Clubs[Gemini.Boot]))
+
+	routingStatsSummary := struct {
+		hf    int
+		bf    []int
+		rf    []int
+		undef int
+	}{
+		hf:    0,
+		bf:    make([]int, 32, 32),
+		rf:    make([]int, 32, 32),
+		undef: 0,
+	}
+
+	for _, v := range stats {
+		if v.rs == Gemini.HatRoute {
+			routingStatsSummary.hf++
+		} else if v.rs == Gemini.BootForward {
+			routingStatsSummary.bf[v.hopsCount]++
+		} else if v.rs == Gemini.RandomForward {
+			routingStatsSummary.rf[v.hopsCount]++
+		} else if v.rs == Gemini.Undefined {
+			routingStatsSummary.undef++
+		}
+	}
+
+	fmt.Printf("\n%v have been found in 1 hop (hat)\n", routingStatsSummary.hf)
+	for i, v := range routingStatsSummary.bf {
+		if v != 0 {
+			fmt.Printf("\n%v have been found in %v hop(s) (boot)\n", v, i)
+		}
+	}
+	for i, v := range routingStatsSummary.rf {
+		if v != 0 {
+			fmt.Printf("\n%v have been found in %v hop(s) (random-boot)\n", v, i)
+		}
+	}
+	fmt.Printf("\n%v cause undefined behavior (cuz no wait until seed n stuff)\n", routingStatsSummary.undef)
 	fmt.Println("Done")
 }

@@ -7,7 +7,8 @@ import (
 
 func TestNewGeminus(t *testing.T) {
 	addr := "10.10.210.21"
-	g := NewGeminus(addr, 6000, 160, 3)
+	gParams := NewGeminiConfig(6000, 160, 3, 3)
+	g := NewGeminus(addr, gParams)
 
 	err := g.Init()
 
@@ -26,12 +27,12 @@ func TestNewGeminus(t *testing.T) {
 		t.Fail()
 	}
 
-	if cap(g.HatClub) != g.Params.ClubSize.Boot {
+	if cap(g.Clubs[Hat]) != g.Params.ClubSize[Hat] {
 		t.Log("Faulty Geminus HatClub Instantiation")
 		t.Fail()
 	}
 
-	if cap(g.BootClub) != g.Params.ClubSize.Boot {
+	if cap(g.Clubs[Boot]) != g.Params.ClubSize[Boot] {
 		t.Log("Faulty Geminus BootClub Instantiation")
 		t.Fail()
 	}
@@ -39,11 +40,13 @@ func TestNewGeminus(t *testing.T) {
 
 func TestSetState(t *testing.T) {
 	addr := "10.10.210.21"
-	g := NewGeminus(addr, 6000, 160, 3)
+
+	gParams := NewGeminiConfig(6000, 160, 3, 3)
+	g := NewGeminus(addr, gParams)
 
 	g.Init()
 
-	addressMap := map[string]Case{
+	addressMap := map[string]Club{
 		"10.10.230.331":   "",
 		"109.20.212.121":  "",
 		"100.130.322.222": "",
@@ -52,23 +55,24 @@ func TestSetState(t *testing.T) {
 	}
 
 	for k, _ := range addressMap {
-		addressMap[k] = g.SetState(k)
+		addressMap[k], _ = g.SetState(k)
 	}
 
 	for k, v := range addressMap {
 		foundAddr, status := g.Route(k)
-		if foundAddr.GetRaw() != k && status != Forward {
+		if foundAddr.GetRaw() != k && status != RandomForward && status != BootForward {
 			t.Log("Found address is not we are trying to route to")
 			t.Fail()
 		}
-		if v == Hat && foundAddr.GetRaw() == k && status != HatFind {
+		if v == Hat && foundAddr.GetRaw() == k && status != HatRoute {
 			t.Log("Address belongs to Hat Club but RoutingSatus is not HatFind")
 			t.Fail()
-		} else if v == Boot && foundAddr.GetRaw() == k && status != BootFind {
+		} else if v == Boot && foundAddr.GetRaw() == k && status != BootForward {
 			t.Log("Address belongs to Boot Club but RoutingStatus is not BootFind")
 			t.Fail()
-		} else if v == Foreign && status != Forward {
-			t.Log("Address belongs to no club but RoutingStatus it not Forward")
+		} else if v == Unrecognized && status != RandomForward && status != BootForward {
+			t.Log(status)
+			t.Log("Address belongs to no club but RoutingStatus is not Forward")
 			t.Fail()
 		}
 	}
