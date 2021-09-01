@@ -393,7 +393,7 @@ func Router(target Node, destination Node, h, b int) (Node, string) {
 
 func simulateRouting(stats *Stats, network *Network) {
 	targetNode := pickRandomNode(network.Nodes)
-	destinationNodes := pickRandomNodes(network.Nodes, 10)
+	destinationNodes := pickRandomNodes(network.Nodes, 600)
 
 	var currentTarget Node
 	for _, destinationNode := range destinationNodes {
@@ -442,9 +442,15 @@ func printStats(stats *Stats) {
 
 	fmt.Printf("\n")
 	fmt.Println("Routing stats:")
+	fmt.Println(len(stats.Routes), "Requests for routing performed")
 
+	hops := map[int]int{}
 	for _, r := range stats.Routes {
-		fmt.Println("Routing from", r.targetID.BinRep, "to", r.destinationID.BinRep, "happened in", r.Hops, "hops, with this pattern", r.Status)
+		hops[r.Hops]++
+	}
+
+	for k, h := range hops {
+		fmt.Println(h, "routes happened in ", k, "hops")
 	}
 }
 
