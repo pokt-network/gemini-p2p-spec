@@ -10,7 +10,7 @@ import (
 )
 
 type (
-	Stats struct {
+	Stats1 struct {
 		HatClubs            map[string][]*Gemini.Geminus
 		BootClubs           map[string][]*Gemini.Geminus
 		HatClubsCount       int
@@ -24,7 +24,7 @@ type (
 
 const NetworkNodesCount = 6000
 
-func PrintStats(stats *Stats) {
+func PrintStats(stats *Stats1) {
 	allHatClubsElements := make([]*Gemini.Geminus, 0, 6000*2)
 	allBootClubsElements := make([]*Gemini.Geminus, 0, 6000*2)
 
@@ -57,7 +57,7 @@ func PrintStats(stats *Stats) {
 	stats.HatClubCoverage = float64(100 * (NetworkNodesCount / len(uniqueHatClubsElements)))
 	stats.BootClubCoverage = float64(100 * (NetworkNodesCount / len(uniqueBootClubsElements)))
 
-	fmt.Println("Stats:")
+	fmt.Println("Stats1:")
 	fmt.Println("*) HatClubs:")
 	fmt.Println("*---> Count:", stats.HatClubsCount)
 	fmt.Println("*---> Average (Actual) Clubs Size:", stats.AverageHatClubSize)
@@ -72,8 +72,8 @@ func PrintStats(stats *Stats) {
 	fmt.Println("*---> Number of Nodes Covered by Boot Clubs:", len(uniqueBootClubsElements))
 }
 
-func GetStatsObj() *Stats {
-	return &Stats{
+func GetStatsObj() *Stats1 {
+	return &Stats1{
 		HatClubs:            make(map[string][]*Gemini.Geminus),
 		BootClubs:           make(map[string][]*Gemini.Geminus),
 		HatClubsCount:       0,
@@ -111,7 +111,7 @@ func pickRandomPeers(pp []*Gemini.Geminus, count int) []*Gemini.Geminus {
 	return stack
 }
 
-func Categorize(stats *Stats, p *Gemini.Geminus) *Stats {
+func Categorize(stats *Stats1, p *Gemini.Geminus) *Stats1 {
 	addrLength := p.Addr.GetBinBitLength()
 	addrBinHash := p.Addr.GetBinaryHash()
 
@@ -291,7 +291,7 @@ func main() {
 	}
 
 	PrintStats(clubStats)
-	fmt.Println("Stats")
+	fmt.Println("Stats1")
 	fmt.Println("For a random node who has been given 500 random address to route:")
 	fmt.Printf("\n Hat Club Size :%v, Boot Club Size: %v\n", len(target.Clubs[Gemini.Hat]), len(target.Clubs[Gemini.Boot]))
 
