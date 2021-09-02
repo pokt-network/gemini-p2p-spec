@@ -70,7 +70,7 @@ func Id(ring *big.Int) *big.Int {
 }
 
 func GetBinary(ID big.Int) string {
-	return fmt.Sprintf("%b", ID)
+	return fmt.Sprintf("%b", &ID)
 }
 
 func IntRing(order int) big.Int {
@@ -456,8 +456,8 @@ func printStats(stats *Stats) {
 
 func main() {
 	networkSize := 6000
-	h := 7
-	b := 3
+	h := 5
+	b := 5
 
 	idLength := 128
 
@@ -475,7 +475,7 @@ func main() {
 	surveyNetwork(statistics, network)
 
 	fmt.Println("Simulating the routing...")
-	simulateRouting(statistics, network)
+	// simulateRouting(statistics, network)
 
 	printStats(statistics)
 }
