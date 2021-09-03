@@ -104,7 +104,7 @@ func NewNode(id *ID, h, b, hcSize, bcSize int, ring *Ring) *Node {
 		HatClub:  make([]Node, 0, hcSize),
 		BootClub: make([]Node, 0, bcSize),
 		HatCase:  Hatcase(id.IntRep, h),
-		BootCase: Hatcase(id.IntRep, b),
+		BootCase: Bootcase(id.IntRep, b),
 	}
 }
 
@@ -211,7 +211,6 @@ func seedNetwork(network *Network) {
 		iHat := network.Nodes[i].HatCase
 		iBoot := network.Nodes[i].BootCase
 
-		fmt.Println(iHat, iBoot)
 		_, exists := hatMap[iHat]
 		if !exists {
 			hatMap[iHat] = []Node{network.Nodes[i]}
@@ -300,12 +299,16 @@ func pickRandomNodes(nodePool []Node, count int) []Node {
 func commonClub(nodeA, nodeB Node, network *Network, found *Node) string {
 	if nodeA.HatCase == nodeB.HatCase {
 		return "Hat"
+	} else {
+		fmt.Println("not Hat", nodeA.HatCase, nodeB.HatCase)
 	}
 
 	for _, e := range network.BootMap[nodeA.BootCase] {
 		if e.HatCase == nodeB.HatCase {
 			*found = e
 			return "HatInBoot"
+		} else {
+			fmt.Println("not HatInBoot", e.HatCase, nodeB.HatCase)
 		}
 	}
 
@@ -357,7 +360,7 @@ func Router(target Node, destination Node, network *Network, h, b int) (Node, st
 		fmt.Println("For some reason, no numerically closest node was picked")
 		break
 
-	case "InBoot":
+	case "HatInBoot":
 		fmt.Println("We are in boot case")
 		if found.ID != nil {
 			fmt.Println("Success, found a boot club item with same hat case")
@@ -384,7 +387,7 @@ func Router(target Node, destination Node, network *Network, h, b int) (Node, st
 
 func simulateRouting(stats *Stats, network *Network) {
 	targetNode := pickRandomNode(network.Nodes)
-	destinationNodes := pickRandomNodes(network.Nodes, 600)
+	destinationNodes := pickRandomNodes(network.Nodes, 2000)
 
 	var currentTarget Node
 	undefineds := 0
@@ -411,16 +414,12 @@ func simulateRouting(stats *Stats, network *Network) {
 					route.Routed = true
 					fmt.Println("routed")
 				} else {
-					fmt.Println("Not found yet")
-					fmt.Println("Chaging next hop from", currentTarget.ID.IntRep)
 					currentTarget = nextHop
-					fmt.Println("to", nextHop.ID.IntRep)
-					fmt.Println("still looking for", destinationNode.ID.IntRep)
 				}
 
 				route.Status = fmt.Sprintf("%s,%s", route.Status, status)
 				route.Hops++
-				fmt.Println(status, route.Hops)
+				fmt.Println("[]:", status, route.Hops)
 			}
 			fmt.Println("Done with a route!")
 
