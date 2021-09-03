@@ -26,6 +26,8 @@ type (
 		ID       *ID
 		HatClub  []Node
 		BootClub []Node
+		HatCase  string
+		BootCase string
 	}
 
 	Network struct {
@@ -33,6 +35,8 @@ type (
 		BootLength int
 		Ring       *Ring
 		Nodes      []Node
+		HatMap     map[string][]Node
+		BootMap    map[string][]Node
 	}
 
 	Route struct {
@@ -40,11 +44,10 @@ type (
 		destinationID *ID
 		Status        string
 		Hops          int
+		Routed        bool
 	}
 
 	Stats struct {
-		HatClubs            map[string][]Node
-		BootClubs           map[string][]Node
 		HatClubsCount       int
 		BootClubsCount      int
 		AverageHatClubSize  int
@@ -70,7 +73,7 @@ func Id(ring *big.Int) *big.Int {
 }
 
 func GetBinary(ID big.Int) string {
-	return fmt.Sprintf("%b", &ID)
+	return fmt.Sprintf("%0128b", &ID)
 }
 
 func IntRing(order int) big.Int {
@@ -94,12 +97,14 @@ func NewRing(order int) *Ring {
 	}
 }
 
-func NewNode(id *ID, hcSize, bcSize int, ring *Ring) *Node {
+func NewNode(id *ID, h, b, hcSize, bcSize int, ring *Ring) *Node {
 	return &Node{
 		MyRing:   ring,
 		ID:       id,
 		HatClub:  make([]Node, 0, hcSize),
 		BootClub: make([]Node, 0, bcSize),
+		HatCase:  Hatcase(id.IntRep, h),
+		BootCase: Hatcase(id.IntRep, b),
 	}
 }
 
@@ -120,13 +125,12 @@ func NewRoute(tID, destID *ID) *Route {
 		destinationID: destID,
 		Status:        "",
 		Hops:          0,
+		Routed:        false,
 	}
 }
 
 func NewStats() *Stats {
 	return &Stats{
-		HatClubs:            make(map[string][]Node),
-		BootClubs:           make(map[string][]Node),
 		HatClubsCount:       0,
 		BootClubsCount:      0,
 		AverageHatClubSize:  0,
@@ -153,14 +157,14 @@ func getDistance(ring, a, b big.Int) int64 {
 }
 
 func Hatcase(ID big.Int, length int) string {
-	return GetBinary(ID)[0 : length-1]
+	return GetBinary(ID)[:length]
 }
 
 func Bootcase(ID big.Int, length int) string {
 	idBin := GetBinary(ID)
 	idLength := len(idBin)
 
-	return idBin[idLength-1-length : idLength-1]
+	return idBin[idLength-length:]
 }
 
 func isIDUnique(pool []ID, id ID) bool {
@@ -193,59 +197,51 @@ func populateNetwork(idPool []ID, network *Network, netSize, h, b, idLength int)
 		id := NewID(network.Ring)
 		if isIDUnique(idPool, *id) {
 			idPool = append(idPool, *id)
-			node := NewNode(id, hcSize, bcSize, network.Ring)
+			node := NewNode(id, h, b, hcSize, bcSize, network.Ring)
 			network.Nodes = append(network.Nodes, *node)
 		}
 	}
 }
 
 func seedNetwork(network *Network) {
+	hatMap := make(map[string][]Node)
+	bootMap := make(map[string][]Node)
+
 	for i := 0; i < len(network.Nodes); i++ {
-		for j := 0; j < len(network.Nodes); j++ {
-			iHat := Hatcase(network.Nodes[i].ID.IntRep, network.HatLength)
-			jHat := Hatcase(network.Nodes[j].ID.IntRep, network.HatLength)
+		iHat := network.Nodes[i].HatCase
+		iBoot := network.Nodes[i].BootCase
 
-			iBoot := Bootcase(network.Nodes[i].ID.IntRep, network.BootLength)
-			jBoot := Bootcase(network.Nodes[j].ID.IntRep, network.BootLength)
+		fmt.Println(iHat, iBoot)
+		_, exists := hatMap[iHat]
+		if !exists {
+			hatMap[iHat] = []Node{network.Nodes[i]}
+		} else {
+			hatMap[iHat] = append(hatMap[iHat], network.Nodes[i])
+		}
 
-			if iHat == jHat {
-				network.Nodes[i].HatClub = append(network.Nodes[i].HatClub, network.Nodes[j])
-				network.Nodes[j].HatClub = append(network.Nodes[j].HatClub, network.Nodes[i])
-			}
-
-			if iBoot == jBoot {
-				network.Nodes[i].BootClub = append(network.Nodes[i].BootClub, network.Nodes[j])
-				network.Nodes[j].BootClub = append(network.Nodes[j].BootClub, network.Nodes[i])
-			}
+		_, exists = bootMap[iBoot]
+		if !exists {
+			bootMap[iBoot] = []Node{network.Nodes[i]}
+		} else {
+			bootMap[iBoot] = append(bootMap[iBoot], network.Nodes[i])
 		}
 	}
+
+	for i := 0; i < len(network.Nodes); i++ {
+		iHat := network.Nodes[i].HatCase
+		iBoot := network.Nodes[i].BootCase
+
+		network.Nodes[i].HatClub = hatMap[iHat]
+		network.Nodes[i].BootClub = bootMap[iBoot]
+	}
+
+	network.BootMap = bootMap
+	network.HatMap = hatMap
 }
 
 func surveyNetwork(stats *Stats, network *Network) {
-	for _, v := range network.Nodes {
-		vHat := Hatcase(v.ID.IntRep, network.HatLength)
-		vBoot := Bootcase(v.ID.IntRep, network.BootLength)
-
-		if _, exists := stats.HatClubs[string(vHat)]; exists {
-			stats.HatClubs[string(vHat)] = append(stats.HatClubs[string(vHat)], v)
-		} else {
-			stats.HatClubs[string(vHat)] = append(
-				make([]Node, 0, int(float64(cap(network.Nodes))/math.Pow(2, float64(network.HatLength)))),
-				v,
-			)
-			stats.HatClubsCount++
-		}
-
-		if _, exists := stats.BootClubs[string(vBoot)]; exists {
-			stats.BootClubs[string(vBoot)] = append(stats.BootClubs[string(vBoot)], v)
-		} else {
-			stats.BootClubs[string(vBoot)] = append(
-				make([]Node, 0, int(float64(cap(network.Nodes))/math.Pow(2, float64(network.BootLength)))),
-				v,
-			)
-			stats.BootClubsCount++
-		}
-	}
+	stats.HatClubsCount = len(network.HatMap)
+	stats.BootClubsCount = len(network.BootMap)
 
 	allHatClubsElements := make([]Node, 0, cap(network.Nodes)*2)
 	allBootClubsElements := make([]Node, 0, cap(network.Nodes)*2)
@@ -253,9 +249,9 @@ func surveyNetwork(stats *Stats, network *Network) {
 	uniqueHatClubsElements := make([]Node, 0, cap(network.Nodes))
 	uniqueBootClubsElements := make([]Node, 0, cap(network.Nodes))
 
-	for _, v := range stats.HatClubs {
-		stats.AverageHatClubSize = stats.AverageHatClubSize + len(v)
-		allHatClubsElements = append(allHatClubsElements, v...)
+	for _, k := range network.HatMap {
+		stats.AverageHatClubSize = stats.AverageHatClubSize + len(k)
+		allHatClubsElements = append(allHatClubsElements, k...)
 	}
 
 	for _, v := range allHatClubsElements {
@@ -264,9 +260,9 @@ func surveyNetwork(stats *Stats, network *Network) {
 		}
 	}
 
-	for _, v := range stats.BootClubs {
-		stats.AverageBootClubSize = stats.AverageBootClubSize + len(v)
-		allBootClubsElements = append(allBootClubsElements, v...)
+	for _, k := range network.BootMap {
+		stats.AverageBootClubSize = stats.AverageBootClubSize + len(k)
+		allBootClubsElements = append(allBootClubsElements, k...)
 	}
 
 	for _, v := range allBootClubsElements {
@@ -283,7 +279,6 @@ func surveyNetwork(stats *Stats, network *Network) {
 
 	stats.UniqueHatClubItems = uniqueHatClubsElements
 	stats.UniqueBootClubItems = uniqueBootClubsElements
-
 }
 
 func pickRandomNode(nodePool []Node) Node {
@@ -302,22 +297,27 @@ func pickRandomNodes(nodePool []Node, count int) []Node {
 	return stack
 }
 
-func commonClub(idA ID, idB ID, h, b int) string {
-	aHat := Hatcase(idA.IntRep, h)
-	bHat := Hatcase(idB.IntRep, h)
-
-	fmt.Println(aHat, bHat)
-
-	if aHat == bHat {
+func commonClub(nodeA, nodeB Node, network *Network, found *Node) string {
+	if nodeA.HatCase == nodeB.HatCase {
 		return "Hat"
 	}
 
-	aBoot := Bootcase(idA.IntRep, b)
-	bBoot := Bootcase(idB.IntRep, b)
+	for _, e := range network.BootMap[nodeA.BootCase] {
+		if e.HatCase == nodeB.HatCase {
+			*found = e
+			return "HatInBoot"
+		}
+	}
 
-	fmt.Println(aBoot, bBoot)
-	if aBoot == bBoot {
-		return "Boot"
+	f, tries := false, 0
+	for !f && tries < len(network.HatMap[nodeA.HatCase]) {
+		random := pickRandomNode(network.HatMap[nodeA.HatCase])
+		if random.BootCase != nodeB.BootCase {
+			f = true
+			*found = random
+			return "ABootInHat"
+		}
+		tries++
 	}
 
 	return "Neither"
@@ -336,15 +336,16 @@ func sortByClosestDistance(ref Node, list []Node) {
 	})
 }
 
-func Router(target Node, destination Node, h, b int) (Node, string) {
-	haveSame := commonClub(*target.ID, *destination.ID, h, b)
+func Router(target Node, destination Node, network *Network, h, b int) (Node, string) {
+	found := Node{ID: nil, MyRing: nil, HatClub: nil, BootClub: nil}
+	haveSame := commonClub(target, destination, network, &found)
 
 	fmt.Println("destination and target have the same", haveSame)
 
 	switch haveSame {
 	case "Hat":
 		fmt.Println("We are in hat case")
-		distances := append(make([]Node, 0, len(target.HatClub)), target.HatClub...)
+		distances := append(make([]Node, 0, len(network.HatMap[target.HatCase])), network.HatMap[target.HatCase]...)
 
 		sortByClosestDistance(destination, distances)
 
@@ -354,35 +355,25 @@ func Router(target Node, destination Node, h, b int) (Node, string) {
 			return numericallyClosest, "Hat"
 		}
 		fmt.Println("For some reason, no numerically closest node was picked")
+		break
 
-	case "Boot":
+	case "InBoot":
 		fmt.Println("We are in boot case")
-		for _, e := range target.BootClub {
-			if commonClub(*e.ID, *destination.ID, h, b) == "Hat" {
-				fmt.Println("e", *e.ID)
-				fmt.Println("Success, found a boot club item with same hat case")
-				return e, "Boot"
-			}
+		if found.ID != nil {
+			fmt.Println("Success, found a boot club item with same hat case")
+			return found, "InBoot"
 		}
 		fmt.Println("For some reason, no id from hat club with same boot club as destination was found")
+		break
 
-	case "Neither":
-		var e Node
-		for i := 0; i < len(target.HatClub); i++ {
-			if Bootcase(target.HatClub[i].ID.IntRep, b) != Bootcase(destination.ID.IntRep, b) {
-				e = target.HatClub[i]
-				fmt.Println("========")
-				fmt.Println(e.ID)
-				fmt.Println("========")
-				break
-			}
+	case "ABootInHat":
+		fmt.Println("We are in hat case looking for a differnt boot")
+		if found.ID != nil {
+			fmt.Println("Success, found a different boot club with same hat case")
+			return found, "ABootInHat"
 		}
-
-		if e.ID != nil {
-			fmt.Println("Success, found a random hat club item with a different boot club")
-			return e, "Random"
-		}
-		fmt.Println("For some reason, could not pick a random hat club item that has a different boot club")
+		fmt.Println("For some reason, no id from hat club with different boot club as destination was found")
+		break
 
 	default:
 		return Node{ID: nil, MyRing: nil, HatClub: nil, BootClub: nil}, "Undefined"
@@ -396,33 +387,47 @@ func simulateRouting(stats *Stats, network *Network) {
 	destinationNodes := pickRandomNodes(network.Nodes, 600)
 
 	var currentTarget Node
+	undefineds := 0
 	for _, destinationNode := range destinationNodes {
 		currentTarget = targetNode
 		if destinationNode.ID.IntRep.Cmp(&currentTarget.ID.IntRep) != 0 {
 			route := NewRoute(currentTarget.ID, destinationNode.ID)
 			routed := false
 
-			for !routed {
-				nextHop, status := Router(currentTarget, destinationNode, network.HatLength, network.BootLength)
+			for !routed && route.Hops < 200 {
+				nextHop, status := Router(currentTarget, destinationNode, network, network.HatLength, network.BootLength)
 
-				fmt.Println("Next Hop=", nextHop.ID.IntRep)
-				fmt.Println("Destination=", destinationNode.ID.IntRep)
+				if status == "Undefined" || nextHop.ID == nil {
+					route.Status = fmt.Sprintf("%s,%s", route.Status, status)
+					route.Hops++
+					fmt.Println(status, route.Hops)
+					undefineds++
+					break
+				}
 
-				if nextHop.ID.IntRep.Cmp(&destinationNode.ID.IntRep) == 0 {
+				fmt.Println(nextHop.ID.IntRep, destinationNode.ID.IntRep)
+				if destinationNode.ID.IntRep.Cmp(&nextHop.ID.IntRep) == 0 {
 					routed = true
+					route.Routed = true
+					fmt.Println("routed")
 				} else {
+					fmt.Println("Not found yet")
+					fmt.Println("Chaging next hop from", currentTarget.ID.IntRep)
 					currentTarget = nextHop
+					fmt.Println("to", nextHop.ID.IntRep)
+					fmt.Println("still looking for", destinationNode.ID.IntRep)
 				}
 
 				route.Status = fmt.Sprintf("%s,%s", route.Status, status)
 				route.Hops++
-				fmt.Println(status, *nextHop.ID, route.Hops)
+				fmt.Println(status, route.Hops)
 			}
 			fmt.Println("Done with a route!")
 
 			stats.Routes = append(stats.Routes, *route)
 		}
 	}
+	fmt.Println("undefineds", undefineds)
 }
 
 func printStats(stats *Stats) {
@@ -446,11 +451,24 @@ func printStats(stats *Stats) {
 
 	hops := map[int]int{}
 	for _, r := range stats.Routes {
-		hops[r.Hops]++
+		if r.Routed {
+			hops[r.Hops]++
+		}
 	}
 
 	for k, h := range hops {
 		fmt.Println(h, "routes happened in ", k, "hops")
+	}
+
+	nhops := map[int]int{}
+	for _, r := range stats.Routes {
+		if !r.Routed {
+			nhops[r.Hops]++
+		}
+	}
+
+	for k, h := range nhops {
+		fmt.Println(h, "routes did not route after", k, "hops")
 	}
 }
 
@@ -468,14 +486,38 @@ func main() {
 	fmt.Println("Populating the network...")
 	populateNetwork(IDPool, network, networkSize, h, b, idLength)
 
-	fmt.Println("Surveying the network...")
+	fmt.Println("Seeding the network...")
 	seedNetwork(network)
 
 	fmt.Println("Surveying the network...")
 	surveyNetwork(statistics, network)
 
 	fmt.Println("Simulating the routing...")
-	// simulateRouting(statistics, network)
+	simulateRouting(statistics, network)
 
 	printStats(statistics)
+}
+
+func mainOff() {
+	r := IntRing(128)
+	id := Id(&r)
+	bitsBin := ""
+	bytesBin := ""
+
+	fmt.Println(id)
+	fmt.Println("BinaryBin:", GetBinary(*id))
+	for i := 0; i < id.BitLen(); i++ {
+		bitsBin = fmt.Sprintf("%s%b", bitsBin, id.Bit(i))
+	}
+	fmt.Println("Length of big.Int // big.Int.BitLen()", id.BitLen())
+	fmt.Println("Length of Binary of big.Int.Bits(i)", len(bitsBin))
+	fmt.Println("Value of binary of big.Int.Bits(i)", bitsBin)
+
+	for _, n := range id.Bytes() {
+		bytesBin = fmt.Sprintf("%s%08b", bytesBin, n) // prints 00000000 11111101
+	}
+
+	fmt.Println("Length of big.Int.Bytes()", len(id.Bytes())*8)
+	fmt.Println("Length of Binary of big.Int.Bytes()", len(bytesBin))
+	fmt.Println("Value of binary of big.Int.Bytes()", bytesBin)
 }
