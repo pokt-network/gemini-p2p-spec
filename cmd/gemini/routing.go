@@ -395,9 +395,8 @@ func simulateRouting(stats *Stats, network *Network) {
 		currentTarget = targetNode
 		if destinationNode.ID.IntRep.Cmp(&currentTarget.ID.IntRep) != 0 {
 			route := NewRoute(currentTarget.ID, destinationNode.ID)
-			routed := false
 
-			for !routed && route.Hops < 200 {
+			for !route.Routed && route.Hops < 200 {
 				nextHop, status := Router(currentTarget, destinationNode, network, network.HatLength, network.BootLength)
 
 				if status == "Undefined" || nextHop.ID == nil {
@@ -410,7 +409,6 @@ func simulateRouting(stats *Stats, network *Network) {
 
 				fmt.Println(nextHop.ID.IntRep, destinationNode.ID.IntRep)
 				if destinationNode.ID.IntRep.Cmp(&nextHop.ID.IntRep) == 0 {
-					routed = true
 					route.Routed = true
 					fmt.Println("routed")
 				} else {
