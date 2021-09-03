@@ -407,17 +407,14 @@ func simulateRouting(stats *Stats, network *Network) {
 					break
 				}
 
-				fmt.Println(nextHop.ID.IntRep, destinationNode.ID.IntRep)
 				if destinationNode.ID.IntRep.Cmp(&nextHop.ID.IntRep) == 0 {
 					route.Routed = true
-					fmt.Println("routed")
 				} else {
 					currentTarget = nextHop
 				}
 
 				route.Status = fmt.Sprintf("%s,%s", route.Status, status)
 				route.Hops++
-				fmt.Println("[]:", status, route.Hops)
 			}
 			fmt.Println("Done with a route!")
 
