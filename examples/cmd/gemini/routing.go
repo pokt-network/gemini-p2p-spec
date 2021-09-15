@@ -473,8 +473,8 @@ func main() {
 		panic("You have to supply a network size argument")
 	}
 	networkSize, _ := StrConversion.Atoi(os.Args[1])
-	h := 5
-	b := 5
+	h, _ := StrConversion.Atoi(os.Args[2])
+	b, _ := StrConversion.Atoi(os.Args[3])
 
 	idLength := 128
 

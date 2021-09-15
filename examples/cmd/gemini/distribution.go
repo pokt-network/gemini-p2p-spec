@@ -50,6 +50,8 @@ type (
 	}
 
 	Stats struct {
+		HatLength           int
+		BootLength          int
 		HatClubsCount       int
 		BootClubsCount      int
 		AverageHatClubSize  int
@@ -135,6 +137,8 @@ func NewRoute(tID, destID *ID) *Route {
 
 func NewStats() *Stats {
 	return &Stats{
+		HatLength:           0,
+		BootLength:          0,
 		HatClubsCount:       0,
 		BootClubsCount:      0,
 		AverageHatClubSize:  0,
@@ -288,7 +292,7 @@ func surveyNetwork(stats *Stats, network *Network) {
 		bootLen := len(bootClub)
 
 		if bootLen == 1 {
-			hatClub := Hatcase(bootClub[0].ID.IntRep, 5)
+			hatClub := Hatcase(bootClub[0].ID.IntRep, stats.HatLength)
 			hatLen := len(network.HatMap[hatClub])
 			if hatLen == 1 {
 				stats.LonelyIslands["lonely-hat-boot"]++
@@ -495,10 +499,7 @@ func printStats(stats *Stats, details bool) {
 	}
 }
 
-func simulateDistribution(networkSize int) *Stats {
-	h := 5
-	b := 5
-
+func simulateDistribution(networkSize, h, b int) *Stats {
 	idLength := 128
 
 	IDPool := make([]ID, 0, networkSize)
@@ -522,13 +523,15 @@ func simulateDistribution(networkSize int) *Stats {
 
 func main() {
 	networkSize, _ := StrConv.Atoi(os.Args[1])
+	h, _ := StrConv.Atoi(os.Args[2])
+	b, _ := StrConv.Atoi(os.Args[3])
 
 	averageFull := 0
 	averagePartially := 0
 
 	var stats *Stats
 	for i := 0; i < 10; i++ {
-		stats = simulateDistribution(networkSize)
+		stats = simulateDistribution(networkSize, h, b)
 		if stats.LonelyIslands["lonely-hat-boot"] != 0 {
 			averageFull += stats.LonelyIslands["lonely-hat-boot"]
 		}
