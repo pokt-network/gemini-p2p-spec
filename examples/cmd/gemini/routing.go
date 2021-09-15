@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"math"
 	"math/big"
+	"os"
 	"sort"
+	StrConversion "strconv"
 
 	RandomData "github.com/Pallinder/go-randomdata"
 )
@@ -396,7 +398,7 @@ func simulateRouting(stats *Stats, network *Network) {
 		if destinationNode.ID.IntRep.Cmp(&currentTarget.ID.IntRep) != 0 {
 			route := NewRoute(currentTarget.ID, destinationNode.ID)
 
-			for !route.Routed && route.Hops < 200 {
+			for !route.Routed && route.Hops < 10000 {
 				nextHop, status := Router(currentTarget, destinationNode, network, network.HatLength, network.BootLength)
 
 				if status == "Undefined" || nextHop.ID == nil {
@@ -467,7 +469,10 @@ func printStats(stats *Stats) {
 }
 
 func main() {
-	networkSize := 6000
+	if os.Args[1] == "" {
+		panic("You have to supply a network size argument")
+	}
+	networkSize, _ := StrConversion.Atoi(os.Args[1])
 	h := 5
 	b := 5
 

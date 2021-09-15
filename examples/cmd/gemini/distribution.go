@@ -495,7 +495,7 @@ func printStats(stats *Stats, details bool) {
 	}
 }
 
-func simulateDistribution(networkSize int) {
+func simulateDistribution(networkSize int) *Stats {
 	h := 5
 	b := 5
 
@@ -517,10 +517,32 @@ func simulateDistribution(networkSize int) {
 	// fmt.Println("Simulating the routing...")
 	// simulateRouting(statistics, network)
 
-	printStats(statistics, true)
+	return statistics
 }
 
 func main() {
 	networkSize, _ := StrConv.Atoi(os.Args[1])
-	simulateDistribution(networkSize)
+
+	averageFull := 0
+	averagePartially := 0
+
+	var stats *Stats
+	for i := 0; i < 10; i++ {
+		stats = simulateDistribution(networkSize)
+		if stats.LonelyIslands["lonely-hat-boot"] != 0 {
+			averageFull += stats.LonelyIslands["lonely-hat-boot"]
+		}
+
+		if stats.LonelyIslands["lonely-boot"] != 0 {
+			averagePartially += stats.LonelyIslands["lonely-boot"]
+		}
+	}
+
+	printStats(stats, true)
+	fmt.Println("*) Average lonely islands stats on 10 runs:")
+	averageFull = averageFull / 10
+	averagePartially = averagePartially / 10
+
+	fmt.Println("*---> Average Fully Isolated Elements:", averageFull)
+	fmt.Println("*---> Average Partially Isolated Elements:", averagePartially)
 }
