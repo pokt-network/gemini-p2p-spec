@@ -2,6 +2,7 @@ package main
 
 import (
 	CryptoRand "crypto/rand"
+	"errors"
 	"fmt"
 	"math"
 	"math/big"
@@ -56,6 +57,9 @@ type (
 		AverageBootClubSize int
 		HatClubCoverage     float64
 		BootClubCoverage    float64
+
+		HatSizes  []int64
+		BootSizes []int64
 
 		UniqueHatClubItems  []Node
 		UniqueBootClubItems []Node
@@ -143,8 +147,12 @@ func NewStats() *Stats {
 		AverageBootClubSize: 0,
 		HatClubCoverage:     0.0,
 		BootClubCoverage:    0.0,
-		LonelyIslands:       make(map[string]int),
-		Routes:              make([]Route, 0, 2000),
+
+		HatSizes:  make([]int64, 0, 200),
+		BootSizes: make([]int64, 0, 200),
+
+		LonelyIslands: make(map[string]int),
+		Routes:        make([]Route, 0, 2000),
 	}
 }
 
@@ -156,9 +164,6 @@ func getDistance(ring, a, b big.Int) int64 {
 
 	(&distBA).Sub(&rB, &rA)
 	(&distBA).Mod(&distBA, &ring)
-
-	//buf := bytes.NewReader(distBA.Bytes())
-	//binary.Read(buf, binary.BigEndian, &distance)
 
 	return int64(math.Abs(float64(distBA.Int64())))
 }
@@ -286,18 +291,46 @@ func surveyNetwork(stats *Stats, network *Network) {
 	stats.UniqueHatClubItems = uniqueHatClubsElements
 	stats.UniqueBootClubItems = uniqueBootClubsElements
 
-	for _, bootClub := range network.BootMap {
-		bootLen := len(bootClub)
+	//for _, bootClub := range network.BootMap {
+	//	bootLen := len(bootClub)
 
-		if bootLen == 1 {
-			hatClub := Hatcase(bootClub[0].ID.IntRep, stats.HatLength)
-			hatLen := len(network.HatMap[hatClub])
-			if hatLen == 1 {
-				stats.LonelyIslands["lonely-hat-boot"]++
+	//	if bootLen == 1 {
+	//		hatClub := Hatcase(bootClub[0].ID.IntRep, stats.HatLength)
+	//		hatLen := len(network.HatMap[hatClub])
+	//		if hatLen == 1 {
+	//			stats.LonelyIslands["lonely-hat-boot"]++
+	//		} else {
+	//			stats.LonelyIslands["lonely-boot"]++
+	//		}
+	//	}
+	//}
+
+	//for _, v := range network.HatMap {
+	//	sort.Slice(v, func(i, j int) bool {
+	//		distA := getDistance(v[i].MyRing.IntRep, v[i].ID.IntRep, v[j].ID.IntRep)
+
+	//		if distA > 0 {
+	//			return true
+	//		} else {
+	//			return false
+	//		}
+	//	})
+	//	width := getDistance(v[0].MyRing.IntRep, v[len(v)-1].ID.IntRep, v[0].ID.IntRep)
+	//	stats.HatSizes = append(stats.HatSizes, width)
+	//}
+
+	for _, v := range network.BootMap {
+		sort.Slice(v, func(i, j int) bool {
+			distA := getDistance(v[i].MyRing.IntRep, v[i].ID.IntRep, v[j].ID.IntRep)
+
+			if distA > 0 {
+				return true
 			} else {
-				stats.LonelyIslands["lonely-boot"]++
+				return false
 			}
-		}
+		})
+		width := getDistance(v[0].MyRing.IntRep, v[len(v)-1].ID.IntRep, v[0].ID.IntRep)
+		stats.BootSizes = append(stats.BootSizes, width)
 	}
 }
 
@@ -461,6 +494,17 @@ func printStats(stats *Stats, details bool) {
 	fmt.Println("*---> Number of Nodes Covered by Boot Clubs:", len(stats.UniqueBootClubItems))
 
 	fmt.Printf("\n")
+	fmt.Println("*) Hatsizes")
+	for _, v := range stats.HatSizes {
+		fmt.Println("*---> Size", v)
+	}
+
+	fmt.Println("*) Bootsizes")
+	for _, v := range stats.BootSizes {
+		fmt.Println("*---> Size", v)
+	}
+
+	fmt.Printf("\n")
 	fmt.Println("*) Lonely Islands")
 	if len(stats.LonelyIslands) > 0 {
 		for k, v := range stats.LonelyIslands {
@@ -497,7 +541,7 @@ func printStats(stats *Stats, details bool) {
 	}
 }
 
-func simulateDistribution(networkSize, h, b int) *Stats {
+func simulateDistribution(networkSize, h, b int) {
 	idLength := 128
 
 	IDPool := make([]ID, 0, networkSize)
@@ -513,41 +557,89 @@ func simulateDistribution(networkSize, h, b int) *Stats {
 	fmt.Println("Surveying the network...")
 	surveyNetwork(statistics, network)
 
-	// fmt.Println("Simulating the routing...")
-	// simulateRouting(statistics, network)
-
-	return statistics
+	printStats(statistics, true)
 }
 
 func main() {
+	_, highestAddress, _, _ := getInterval(5, 128, []uint64{1, 1, 1, 1, 1})
+
+	lowestAddress := IntRing(0)
+
+	fmt.Println("*) Highest", GetBinary(highestAddress))
+	fmt.Println("*) Lowest", GetBinary(lowestAddress))
+
+	var possibility big.Int
+	for i := 0; i < 32; i++ {
+		possibility.SetUint64(uint64(i))
+		(&possibility).Xor(&possibility, &highestAddress)
+		s := GetBinary(possibility)
+		fmt.Printf("\n")
+		for j := 0; j < 128; j++ {
+			fmt.Printf("%c", s[127-j])
+		}
+		fmt.Printf("\n")
+	}
+
+	fmt.Println("===========")
+
+	for i := 0; i < 32; i++ {
+		possibility.SetUint64(uint64(i))
+		(&possibility).Xor(&possibility, &lowestAddress)
+		s := GetBinary(possibility)
+		fmt.Printf("\n")
+		for j := 0; j < 128; j++ {
+			fmt.Printf("%c", s[127-j])
+		}
+		fmt.Printf("\n")
+
+	}
+}
+
+func checkRingDivisability() {
 	//networkSize, _ := StrConv.Atoi(os.Args[1])
 	//h, _ := StrConv.Atoi(os.Args[2])
 	//b, _ := StrConv.Atoi(os.Args[3])
 
-	//averageFull := 0
-	//averagePartially := 0
+	//simulateDistribution(networkSize, h, b)
+	// getRingPerspectives()
 
-	//var stats *Stats
-	//for i := 0; i < 10; i++ {
-	//	stats = simulateDistribution(networkSize, h, b)
-	//	if stats.LonelyIslands["lonely-hat-boot"] != 0 {
-	//		averageFull += stats.LonelyIslands["lonely-hat-boot"]
-	//	}
+	ring := IntRing(128)
 
-	//	if stats.LonelyIslands["lonely-boot"] != 0 {
-	//		averagePartially += stats.LonelyIslands["lonely-boot"]
-	//	}
-	//}
+	gLower, gUpper, gWidth, err := getInterval(5, 128, []uint64{1, 1, 1, 1, 1})
+	if err != nil {
+		panic(err)
+	}
+	printIntervalStats("11111", ring, gLower, gUpper, gWidth)
 
-	//printStats(stats, true)
-	//fmt.Println("*) Average lonely islands stats on 10 runs:")
-	//averageFull = averageFull / 10
-	//averagePartially = averagePartially / 10
+	rLower := IntRing(0)
+	rUpper := IntRing(128)
 
-	//fmt.Println("*---> Average Fully Isolated Elements:", averageFull)
-	//fmt.Println("*---> Average Partially Isolated Elements:", averagePartially)
+	rWidth := IntRing(0)
+	(&rWidth).Sub(&gUpper, &rLower)
 
-	getRingPerspectives()
+	printIntervalStats("Entire ring", ring, rLower, rUpper, rWidth)
+
+	(&rWidth).Div(&rWidth, &gWidth)
+
+	fmt.Println("How many intervals can this ring hold", &rWidth)
+}
+
+func printIntervalStats(groupString string, ring, lower, upper, width big.Int) {
+	fmt.Println("Hat club", groupString, ":")
+	fmt.Println("*---> Lower Bound")
+	fmt.Println("*** Int representation:", &lower)
+	fmt.Println("*** Binary representation:", GetBinary(lower))
+
+	fmt.Println("*---> Upper Bound")
+	fmt.Println("*** Int representation:", &upper)
+	fmt.Println("*** Binary representation:", GetBinary(upper))
+
+	fmt.Println("*---> Interval Width")
+	fmt.Println("*** Int representation:", &width)
+	fmt.Println("*** Binary representation:", GetBinary(width))
+
+	distance := getDistance(ring, lower, upper)
+	fmt.Println("Effective width:", distance)
 }
 
 func getRingPerspectives() {
@@ -560,4 +652,57 @@ func getRingPerspectives() {
 
 	fmt.Println("Int representation:", &ringMax)
 	fmt.Println("Binary representation:", GetBinary(ringMax))
+
+	a := IntRing(128)
+	b := IntRing(127)
+	c := IntRing(126)
+	d := IntRing(125)
+	e := IntRing(124)
+
+	var hatLowerBound big.Int
+
+	(&hatLowerBound).Add(&a, &b)
+	(&hatLowerBound).Add(&hatLowerBound, &c)
+	(&hatLowerBound).Add(&hatLowerBound, &d)
+	(&hatLowerBound).Add(&hatLowerBound, &e)
+
+	(&hatLowerBound).Mod(&hatLowerBound, &ringMax)
+
+	fmt.Println("Hat Lower Bound: Int representation:", &hatLowerBound)
+	fmt.Println("Hat Lower Bound: Binary representation:", GetBinary(hatLowerBound))
+}
+
+func getInterval(caseLength, addressLength int, coefficients []uint64) (big.Int, big.Int, big.Int, error) {
+	var lowerBound, upperBound, width big.Int
+
+	if len(coefficients) != caseLength {
+		return lowerBound, upperBound, width, errors.New("The coefficients length should equal the case length")
+	}
+
+	lowerBound.SetUint64(0)
+	upperBound.SetUint64(0)
+	width.SetUint64(0)
+
+	groupBits := make([]big.Int, 0, caseLength)
+
+	for i := 0; i < caseLength; i++ {
+		v := IntRing(addressLength - i)
+		groupBits = append(groupBits, v)
+	}
+
+	for i := 0; i <= addressLength-caseLength; i++ {
+		v := IntRing(i)
+		(&width).Add(&width, &v)
+	}
+
+	for i, co := range coefficients {
+		var coef big.Int
+		(&coef).SetUint64(co)
+		(&coef).Mul(&coef, &(groupBits[i]))
+		(&lowerBound).Add(&lowerBound, &coef)
+	}
+
+	(&upperBound).Add(&lowerBound, &width)
+
+	return lowerBound, upperBound, width, nil
 }
